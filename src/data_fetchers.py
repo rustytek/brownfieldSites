@@ -244,7 +244,7 @@ def fetch_epa_superfund_data():
 def fetch_epa_rcra_data():
     return []
 
-def fetch_all_data(search_term, is_zip=True, state='WA'):
+def fetch_all_data(search_term, is_zip=True, state='WA', lat=None, lon=None):
     """
     Orchestrates fetching data from all sources based on state.
     """
@@ -271,10 +271,10 @@ def fetch_all_data(search_term, is_zip=True, state='WA'):
         inactive_mines = fetch_wa_dnr_inactive_mines()
         hazardous_minerals = fetch_wa_dnr_hazardous_minerals()
     elif state == 'MT':
-        mines = fetch_mt_mines()
+        mines = fetch_mt_mines(lat=lat, lon=lon)
         # MT MBMG includes inactive/abandoned in the same layer, so we put them in 'mines'
     elif state == 'ID':
-        mines = fetch_id_mines()
+        mines = fetch_id_mines(lat=lat, lon=lon)
     
     return sites, towers, mines, inactive_mines, hazardous_minerals
 
@@ -464,20 +464,33 @@ def get_location_details(zipcode):
         logging.error(f"Error looking up zip {zipcode}: {e}")
     return None
 
-def fetch_mt_mines():
+def fetch_mt_mines(lat=None, lon=None, radius_miles=10):
     """
     Fetches mines from Montana Bureau of Mines and Geology (MBMG).
     Service: Mine_MBMG2006_shp
+    If lat/lon provided, filters by bounding box in API query.
     """
     logging.info("Fetching Montana Mines (MBMG)...")
     mines = []
     url = "https://services9.arcgis.com/QjBb6o7pu37CDH58/arcgis/rest/services/Mine_MBMG2006_shp/FeatureServer/0/query"
+    
     params = {
         'where': "1=1",
         'outFields': '*',
         'f': 'json',
         'outSR': '4326'
     }
+    
+    if lat and lon:
+        # Create bounding box
+        offset = radius_miles * 0.02 # Approx conversion
+        xmin, ymin = lon - offset, lat - offset
+        xmax, ymax = lon + offset, lat + offset
+        params['geometry'] = f"{xmin},{ymin},{xmax},{ymax}"
+        params['geometryType'] = 'esriGeometryEnvelope'
+        params['spatialRel'] = 'esriSpatialRelIntersects'
+        params['inSR'] = '4326'
+        logging.info(f"Querying MT Mines in bbox: {params['geometry']}")
     
     try:
         response = requests.get(url, params=params, timeout=30)
@@ -488,16 +501,16 @@ def fetch_mt_mines():
             attrs = feature.get('attributes', {})
             geom = feature.get('geometry', {})
             
-            lat = attrs.get('DLAT') or geom.get('y')
-            lon = attrs.get('DLONG') or geom.get('x')
+            lat_val = attrs.get('DLAT') or geom.get('y')
+            lon_val = attrs.get('DLONG') or geom.get('x')
             
-            if not lat or not lon:
+            if not lat_val or not lon_val:
                 continue
                 
             mine = {
                 'name': attrs.get('Name', 'Unknown Mine'),
-                'lat': lat,
-                'lon': lon,
+                'lat': lat_val,
+                'lon': lon_val,
                 'county': str(attrs.get('County', '')).upper(),
                 'source': 'MT MBMG Mines',
                 'details': f"Type: {attrs.get('Prop_Type', 'Unknown')}; Status: {attrs.get('Status', 'Unknown')}; Commodity: {attrs.get('Com', 'Unknown')}",
@@ -511,20 +524,33 @@ def fetch_mt_mines():
         logging.error(f"Error fetching MT Mines: {e}")
         return []
 
-def fetch_id_mines():
+def fetch_id_mines(lat=None, lon=None, radius_miles=10):
     """
     Fetches mines from Idaho Geological Survey (IGS).
     Service: Mines and Prospects
+    If lat/lon provided, filters by bounding box in API query.
     """
     logging.info("Fetching Idaho Mines (IGS)...")
     mines = []
     url = "https://services.arcgis.com/WLhB60Nqwp4NnHz3/arcgis/rest/services/Mines/FeatureServer/0/query"
+    
     params = {
         'where': "1=1",
         'outFields': '*',
         'f': 'json',
         'outSR': '4326'
     }
+    
+    if lat and lon:
+        # Create bounding box
+        offset = radius_miles * 0.02
+        xmin, ymin = lon - offset, lat - offset
+        xmax, ymax = lon + offset, lat + offset
+        params['geometry'] = f"{xmin},{ymin},{xmax},{ymax}"
+        params['geometryType'] = 'esriGeometryEnvelope'
+        params['spatialRel'] = 'esriSpatialRelIntersects'
+        params['inSR'] = '4326'
+        logging.info(f"Querying ID Mines in bbox: {params['geometry']}")
     
     try:
         response = requests.get(url, params=params, timeout=30)
@@ -535,18 +561,17 @@ def fetch_id_mines():
             attrs = feature.get('attributes', {})
             geom = feature.get('geometry', {})
             
-            # IGS attributes might differ, checking sample
-            # Sample: "NAD27lat": 44.6732306, "NAD27long": -114.242646
-            lat = attrs.get('NAD27lat') or geom.get('y')
-            lon = attrs.get('NAD27long') or geom.get('x')
+            # IGS attributes might differ
+            lat_val = attrs.get('NAD27lat') or geom.get('y')
+            lon_val = attrs.get('NAD27long') or geom.get('x')
             
-            if not lat or not lon:
+            if not lat_val or not lon_val:
                 continue
                 
             mine = {
                 'name': attrs.get('PropName', 'Unknown Mine'),
-                'lat': lat,
-                'lon': lon,
+                'lat': lat_val,
+                'lon': lon_val,
                 'county': str(attrs.get('County', '')).upper(),
                 'source': 'ID IGS Mines',
                 'details': f"Commodity: {attrs.get('Commod1', 'Unknown')}; Type: {attrs.get('PropType', 'Unknown')}",

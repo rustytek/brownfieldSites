@@ -45,12 +45,11 @@ def main():
             print("--> Could not determine location. Defaulting to WA.")
 
     # Fetch Data
-    # sites contains Ecology (filtered) + TRI (all State) + others
-    # towers contains all towers
-    # mines contains all mines for State
-    # inactive_mines contains all inactive mines (WA only)
-    # hazardous_minerals contains all hazardous minerals (WA only)
-    sites, towers, mines, inactive_mines, hazardous_minerals = fetch_all_data(search_term, is_zip, state)
+    # Pass lat/lon if available for spatial querying (MT/ID mines)
+    lat = details.get('lat') if details else None
+    lon = details.get('lon') if details else None
+    
+    sites, towers, mines, inactive_mines, hazardous_minerals = fetch_all_data(search_term, is_zip, state, lat, lon)
     
     # Filter Data
     filtered_sites = []
@@ -65,10 +64,22 @@ def main():
             # Already filtered by API
             filtered_sites.append(site)
         elif site['source'] == 'EPA TRI':
-            # Filter by Zip or County
+            # Filter by Zip, Prefix, or Proximity
             if is_zip:
-                if site['zip'] == search_term:
+                site_zip = str(site.get('zip', ''))
+                
+                # 1. Exact Match
+                if site_zip == search_term:
                     filtered_sites.append(site)
+                # 2. Prefix Match (e.g. 83814-1234)
+                elif site_zip.startswith(search_term):
+                    filtered_sites.append(site)
+                # 3. Proximity Match (if lat/lon available)
+                elif lat and lon and site.get('lat') and site.get('lon'):
+                    # Approx 10 miles check (0.15 deg)
+                    if (lat - 0.15 <= site['lat'] <= lat + 0.15) and \
+                       (lon - 0.15 <= site['lon'] <= lon + 0.15):
+                        filtered_sites.append(site)
             else:
                 # Filter by County (TRI county is usually UPPERCASE)
                 if search_term.upper() in site['county']:
