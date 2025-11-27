@@ -60,11 +60,17 @@ def generate_kml(sites, broadcast_towers, mines, inactive_mines, hazardous_miner
         
         pnt = target_folder.newpoint(name=name)
         pnt.coords = [(site['lon'], site['lat'])]
-        pnt.description = f"Source: {source}<br/>Details: {site.get('details', '')}"
+        
+        # Add URL to description
+        desc = f"Source: {source}<br/>Details: {site.get('details', '')}"
+        if site.get('url'):
+            desc += f"<br/><a href='{site['url']}'>Source Data</a>"
+        pnt.description = desc
+        
         pnt.style.iconstyle.color = color
         
         # Add Ring for Toxic Sites
-        circle = target_folder.newpolygon(name=f"1 Mile Radius - {site['name']}")
+        circle = target_folder.newpolygon(name=f"1 Mile Radius - {name}")
         circle.outerboundaryis = create_circle(site['lat'], site['lon'], 1609.34) # 1 mile in meters
         circle.style.polystyle.color = simplekml.Color.changealphaint(100, color)
         circle.style.linestyle.color = color
@@ -74,7 +80,12 @@ def generate_kml(sites, broadcast_towers, mines, inactive_mines, hazardous_miner
     for tower in broadcast_towers:
         pnt = towers_folder.newpoint(name=tower['name'])
         pnt.coords = [(tower['lon'], tower['lat'])]
-        pnt.description = f"Source: {tower['source']}<br/>Details: {tower['details']}"
+        
+        desc = f"Source: {tower['source']}<br/>Details: {tower['details']}"
+        if tower.get('url'):
+            desc += f"<br/><a href='{tower['url']}'>Source Data</a>"
+        pnt.description = desc
+        
         # Use a Flag icon for towers
         pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/flag.png'
         pnt.style.iconstyle.color = simplekml.Color.cyan # Tinted Cyan
@@ -84,7 +95,12 @@ def generate_kml(sites, broadcast_towers, mines, inactive_mines, hazardous_miner
         name = mine.get('name') or "Unknown Mine"
         pnt = mines_folder.newpoint(name=name)
         pnt.coords = [(mine['lon'], mine['lat'])]
-        pnt.description = f"Source: {mine.get('source', 'Unknown')}<br/>Details: {mine.get('details', '')}"
+        
+        desc = f"Source: {mine.get('source', 'Unknown')}<br/>Details: {mine.get('details', '')}"
+        if mine.get('url'):
+            desc += f"<br/><a href='{mine['url']}'>Source Data</a>"
+        pnt.description = desc
+        
         pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/open-diamond.png'
         pnt.style.iconstyle.scale = 0.8
         pnt.style.iconstyle.color = simplekml.Color.orange
@@ -103,7 +119,12 @@ def generate_kml(sites, broadcast_towers, mines, inactive_mines, hazardous_miner
         # Let's add to mines_folder but with different icon/color
         pnt = mines_folder.newpoint(name=name)
         pnt.coords = [(mine['lon'], mine['lat'])]
-        pnt.description = f"Source: {mine.get('source', 'Unknown')}<br/>Details: {mine.get('details', '')}"
+        
+        desc = f"Source: {mine.get('source', 'Unknown')}<br/>Details: {mine.get('details', '')}"
+        if mine.get('url'):
+            desc += f"<br/><a href='{mine['url']}'>Source Data</a>"
+        pnt.description = desc
+        
         # Use a shaded dot or similar for inactive
         pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png'
         pnt.style.iconstyle.scale = 0.8
@@ -111,19 +132,30 @@ def generate_kml(sites, broadcast_towers, mines, inactive_mines, hazardous_miner
 
     # Add Hazardous Minerals
     for site in hazardous_minerals:
+        desc = f"Source: {site['source']}<br/>Details: {site['details']}"
+        if site.get('url'):
+            desc += f"<br/><a href='{site['url']}'>Source Data</a>"
+            
         if site.get('geom_type') == 'Point':
             pnt = haz_folder.newpoint(name=site['name'])
             pnt.coords = [(site['lon'], site['lat'])]
-            pnt.description = f"Source: {site['source']}<br/>Details: {site['details']}"
+            pnt.description = desc
             pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/caution.png'
             pnt.style.iconstyle.color = simplekml.Color.brown
         elif site.get('geom_type') == 'Polygon':
             poly = haz_folder.newpolygon(name=site['name'])
             poly.outerboundaryis = site['rings'][0] # Use first ring
-            poly.description = f"Source: {site['source']}<br/>Details: {site['details']}"
+            poly.description = desc
             poly.style.polystyle.color = simplekml.Color.changealphaint(100, simplekml.Color.brown)
             poly.style.linestyle.color = simplekml.Color.brown
             poly.style.linestyle.width = 2
+            
+            # Add a pin for the polygon too (centroid)
+            pnt = haz_folder.newpoint(name=site['name'])
+            pnt.coords = [(site['lon'], site['lat'])]
+            pnt.description = desc
+            pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/caution.png'
+            pnt.style.iconstyle.color = simplekml.Color.brown
 
     kml.save(output_file)
     return True

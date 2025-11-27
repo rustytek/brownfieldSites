@@ -92,6 +92,7 @@ def fetch_broadcast_towers():
                         'lat': lat,
                         'lon': lon,
                         'source': 'Broadcast Towers',
+                        'url': 'https://hifld-geoplatform.opendata.arcgis.com/datasets/2bfd434d9263401eadae464a9c26104f_0',
                         'details': f"Licensee: {props.get('LICENSEE', 'Unknown')}; ERP: {props.get('ERP', 'Unknown')}",
                         'type': 'Tower'
                     }
@@ -157,6 +158,7 @@ def fetch_wa_dnr_mines():
                     'lon': lon,
                     'county': str(attrs.get('COUNTY_NAME', '')).upper(),
                     'source': 'WA DNR Mines',
+                    'url': 'https://fortress.wa.gov/dnr/protectiongis/geology/?theme=surface_mining',
                     'details': f"Applicant: {attrs.get('APPLICANT_NAME', 'Unknown')}; Commodity: {attrs.get('COMMODITY_DESC', 'Unknown')}; Permit: {attrs.get('MINE_PERMIT_NUMBER', 'Unknown')}",
                     'type': 'Mine'
                 }
@@ -321,6 +323,7 @@ def fetch_wa_dnr_inactive_mines():
                 'lon': lon,
                 'county': str(attrs.get('COUNTY', '')).upper(),
                 'source': 'WA DNR Inactive Mines',
+                'url': 'https://gis.dnr.wa.gov/site1/rest/services/Public_Geology/Mines_and_Minerals/MapServer/8',
                 'details': f"Commodity: {attrs.get('COMMODITY', 'Unknown')}; Comments: {attrs.get('COMMENT', 'None')}",
                 'type': 'Inactive Mine'
             }
@@ -379,6 +382,7 @@ def fetch_wa_dnr_hazardous_minerals():
                 site = {
                     'name': attrs.get('SITE_NAME', attrs.get('NAMED_UNITS', layer_name)),
                     'source': f"WA DNR {layer_name}",
+                    'url': f"{base_url}/{layer_id}",
                     'details': f"Layer: {layer_name}; Lithology: {attrs.get('LITHOLOGY', 'N/A')}; Commodity: {attrs.get('COMMODITY', 'N/A')}",
                     'type': 'Hazardous Mineral',
                     'layer_id': layer_id,
@@ -513,6 +517,7 @@ def fetch_mt_mines(lat=None, lon=None, radius_miles=10):
                 'lon': lon_val,
                 'county': str(attrs.get('County', '')).upper(),
                 'source': 'MT MBMG Mines',
+                'url': 'https://services9.arcgis.com/QjBb6o7pu37CDH58/arcgis/rest/services/Mine_MBMG2006_shp/FeatureServer/0',
                 'details': f"Type: {attrs.get('Prop_Type', 'Unknown')}; Status: {attrs.get('Status', 'Unknown')}; Commodity: {attrs.get('Com', 'Unknown')}",
                 'type': 'Mine'
             }
@@ -574,6 +579,7 @@ def fetch_id_mines(lat=None, lon=None, radius_miles=10):
                 'lon': lon_val,
                 'county': str(attrs.get('County', '')).upper(),
                 'source': 'ID IGS Mines',
+                'url': 'https://services.arcgis.com/WLhB60Nqwp4NnHz3/arcgis/rest/services/Mines/FeatureServer/0',
                 'details': f"Commodity: {attrs.get('Commod1', 'Unknown')}; Type: {attrs.get('PropType', 'Unknown')}",
                 'type': 'Mine'
             }
