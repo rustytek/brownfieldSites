@@ -12,38 +12,55 @@ def generate_kml(sites, broadcast_towers, mines, inactive_mines, hazardous_miner
 
     # Create Folders
     toxic_folder = kml.newfolder(name="Toxic Sites")
-    ecology_folder = toxic_folder.newfolder(name="WA Ecology Cleanup Sites")
+    # Dynamic folders based on content would be better, but for now let's make them generic or check sources
+    # We'll create a dictionary to hold folder references
+    folders = {}
+    
     tri_folder = toxic_folder.newfolder(name="EPA TRI Facilities")
+    folders['EPA TRI'] = tri_folder
+    
     other_folder = toxic_folder.newfolder(name="Other Toxic Sites")
+    folders['Other'] = other_folder
     
     towers_folder = kml.newfolder(name="Broadcast Towers")
-    mines_folder = kml.newfolder(name="Active Mines")
-    inactive_mines_folder = kml.newfolder(name="Inactive Mines")
+    mines_folder = kml.newfolder(name="Mines") # Combined for simplicity, or split if needed
     haz_folder = kml.newfolder(name="Hazardous Minerals")
 
     # Add Toxic Sites
     for site in sites:
-        # Determine folder and style based on source and rank
-        target_folder = other_folder
-        color = simplekml.Color.blue # Default
+        # Determine folder and style based on source
+        source = site.get('source', 'Unknown')
         
-        if 'Ecology' in site['source']:
-            target_folder = ecology_folder
+        if 'Ecology' in source:
+            if 'WA Ecology' not in folders:
+                folders['WA Ecology'] = toxic_folder.newfolder(name="WA Ecology Cleanup Sites")
+            target_folder = folders['WA Ecology']
+            
+            # Rank coloring for Ecology
             rank = str(site.get('rank', ''))
             if rank == '6': color = simplekml.Color.pink
             elif rank in ['4', '5']: color = simplekml.Color.green
             elif rank == '3': color = simplekml.Color.yellow
             elif rank in ['0', '1', '2']: color = simplekml.Color.red
             else: color = simplekml.Color.blue
-        elif 'TRI' in site['source']:
+            
+        elif 'TRI' in source:
             target_folder = tri_folder
             color = simplekml.Color.purple
+            
         else:
+            # Generic State Cleanup or Other
+            if source not in folders:
+                folders[source] = toxic_folder.newfolder(name=f"{source} Sites")
+            target_folder = folders[source]
             color = simplekml.Color.brown
 
-        pnt = target_folder.newpoint(name=site['name'])
+        # Ensure Name exists
+        name = site.get('name') or "Unknown Site"
+        
+        pnt = target_folder.newpoint(name=name)
         pnt.coords = [(site['lon'], site['lat'])]
-        pnt.description = f"Source: {site['source']}<br/>Details: {site['details']}"
+        pnt.description = f"Source: {source}<br/>Details: {site.get('details', '')}"
         pnt.style.iconstyle.color = color
         
         # Add Ring for Toxic Sites
@@ -64,15 +81,16 @@ def generate_kml(sites, broadcast_towers, mines, inactive_mines, hazardous_miner
 
     # Add Active Mines
     for mine in mines:
-        pnt = mines_folder.newpoint(name=mine['name'])
+        name = mine.get('name') or "Unknown Mine"
+        pnt = mines_folder.newpoint(name=name)
         pnt.coords = [(mine['lon'], mine['lat'])]
-        pnt.description = f"Source: {mine['source']}<br/>Details: {mine['details']}"
+        pnt.description = f"Source: {mine.get('source', 'Unknown')}<br/>Details: {mine.get('details', '')}"
         pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/open-diamond.png'
         pnt.style.iconstyle.scale = 0.8
         pnt.style.iconstyle.color = simplekml.Color.orange
         
         # Add Ring for Mines (Orange)
-        circle = mines_folder.newpolygon(name=f"1 Mile Radius - {mine['name']}")
+        circle = mines_folder.newpolygon(name=f"1 Mile Radius - {name}")
         circle.outerboundaryis = create_circle(mine['lat'], mine['lon'], 1609.34)
         circle.style.polystyle.color = simplekml.Color.changealphaint(100, simplekml.Color.orange)
         circle.style.linestyle.color = simplekml.Color.orange
@@ -80,9 +98,12 @@ def generate_kml(sites, broadcast_towers, mines, inactive_mines, hazardous_miner
 
     # Add Inactive Mines
     for mine in inactive_mines:
-        pnt = inactive_mines_folder.newpoint(name=mine['name'])
+        name = mine.get('name') or "Unknown Inactive Mine"
+        # If we want to separate them in the KML structure, we can create a subfolder or just add to mines_folder
+        # Let's add to mines_folder but with different icon/color
+        pnt = mines_folder.newpoint(name=name)
         pnt.coords = [(mine['lon'], mine['lat'])]
-        pnt.description = f"Source: {mine['source']}<br/>Details: {mine['details']}"
+        pnt.description = f"Source: {mine.get('source', 'Unknown')}<br/>Details: {mine.get('details', '')}"
         # Use a shaded dot or similar for inactive
         pnt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png'
         pnt.style.iconstyle.scale = 0.8

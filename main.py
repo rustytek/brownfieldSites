@@ -109,33 +109,44 @@ def main():
                          filtered_haz_minerals.append(site)
     
     # Spatial Filtering (Fallback or Zip)
-    if filtered_sites:
+    # Determine Center Point
+    center_lat = None
+    center_lon = None
+    
+    if is_zip and 'details' in locals() and details:
+        center_lat = details.get('lat')
+        center_lon = details.get('lon')
+    elif filtered_sites:
         lats = [s['lat'] for s in filtered_sites]
         lons = [s['lon'] for s in filtered_sites]
-        avg_lat = sum(lats) / len(lats)
-        avg_lon = sum(lons) / len(lons)
-        lat_range = 0.1
-        lon_range = 0.1
+        center_lat = sum(lats) / len(lats)
+        center_lon = sum(lons) / len(lons)
+        
+    if center_lat and center_lon:
+        lat_range = 0.15 # Approx 10 miles
+        lon_range = 0.15
+        
+        print(f"Filtering data around {center_lat}, {center_lon} (Range: +/- {lat_range})...")
         
         # Filter Towers (Always proximity)
         for tower in towers:
-            if (avg_lat - lat_range <= tower['lat'] <= avg_lat + lat_range) and \
-               (avg_lon - lon_range <= tower['lon'] <= avg_lon + lon_range):
+            if (center_lat - lat_range <= tower['lat'] <= center_lat + lat_range) and \
+               (center_lon - lon_range <= tower['lon'] <= center_lon + lon_range):
                 filtered_towers.append(tower)
                 
-        # Filter others if Zip search
+        # Filter others if Zip search (and not already filtered by County)
         if is_zip:
              for mine in mines:
-                if (avg_lat - lat_range <= mine['lat'] <= avg_lat + lat_range) and \
-                   (avg_lon - lon_range <= mine['lon'] <= avg_lon + lon_range):
+                if (center_lat - lat_range <= mine['lat'] <= center_lat + lat_range) and \
+                   (center_lon - lon_range <= mine['lon'] <= center_lon + lon_range):
                     filtered_mines.append(mine)
              for mine in inactive_mines:
-                if (avg_lat - lat_range <= mine['lat'] <= avg_lat + lat_range) and \
-                   (avg_lon - lon_range <= mine['lon'] <= avg_lon + lon_range):
+                if (center_lat - lat_range <= mine['lat'] <= center_lat + lat_range) and \
+                   (center_lon - lon_range <= mine['lon'] <= center_lon + lon_range):
                     filtered_inactive_mines.append(mine)
              for site in hazardous_minerals:
-                if (avg_lat - lat_range <= site['lat'] <= avg_lat + lat_range) and \
-                   (avg_lon - lon_range <= site['lon'] <= avg_lon + lon_range):
+                if (center_lat - lat_range <= site['lat'] <= center_lat + lat_range) and \
+                   (center_lon - lon_range <= site['lon'] <= center_lon + lon_range):
                     filtered_haz_minerals.append(site)
 
     print(f"Found {len(filtered_sites)} Toxic Sites.")
