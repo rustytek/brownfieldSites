@@ -277,6 +277,7 @@ def fetch_all_data(search_term, is_zip=True, state='WA', lat=None, lon=None):
         # MT MBMG includes inactive/abandoned in the same layer, so we put them in 'mines'
     elif state == 'ID':
         mines = fetch_id_mines(lat=lat, lon=lon)
+        sites.extend(fetch_id_deq_data(search_term, is_zip, lat, lon))
     
     return sites, towers, mines, inactive_mines, hazardous_minerals
 
@@ -590,3 +591,117 @@ def fetch_id_mines(lat=None, lon=None, radius_miles=10):
     except Exception as e:
         logging.error(f"Error fetching ID Mines: {e}")
         return []
+
+def fetch_id_deq_data(search_term, is_zip=True, lat=None, lon=None):
+    """
+    Fetches Idaho DEQ data from SWA_PCI_WMS MapServer.
+    Layer 12: Potential Contaminants Inventory (PCI)
+    Layer 28: Landfills
+    """
+    logging.info(f"Fetching Idaho DEQ Data for {search_term}...")
+    sites = []
+    base_url = "https://mapcase.deq.idaho.gov/arcgis/rest/services/SWA_PCI_WMS/MapServer"
+    
+    # 1. Potential Contaminants Inventory (Layer 12)
+    # Has ZIPCODE and COUNTY fields
+    url_pci = f"{base_url}/12/query"
+    where_clause = "1=1"
+    if is_zip:
+        where_clause = f"ZIPCODE = {search_term}"
+    else:
+        where_clause = f"UPPER(COUNTY) LIKE '%{search_term.upper()}%'"
+        
+    params_pci = {
+        'where': where_clause,
+        'outFields': '*',
+        'f': 'json',
+        'outSR': '4326'
+    }
+    
+    try:
+        response = requests.get(url_pci, params=params_pci, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            for feature in data.get('features', []):
+                attrs = feature.get('attributes', {})
+                geom = feature.get('geometry', {})
+                
+                lat_val = attrs.get('LATITUDE') or geom.get('y')
+                lon_val = attrs.get('LONGITUDE') or geom.get('x')
+                
+                if not lat_val or not lon_val:
+                    continue
+                    
+                site = {
+                    'name': attrs.get('FACILITY', 'Unknown Facility'),
+                    'address': attrs.get('ADDRESS', ''),
+                    'city': attrs.get('CITY', ''),
+                    'county': str(attrs.get('COUNTY', '')).upper(),
+                    'zip': str(attrs.get('ZIPCODE', '')),
+                    'lat': lat_val,
+                    'lon': lon_val,
+                    'source': 'ID DEQ PCI',
+                    'url': attrs.get('HOTLINK') or f"{base_url}/12",
+                    'details': f"Type: {attrs.get('FAC_TYPE', 'Unknown')}; Contaminant: {attrs.get('CONTAMINAN', 'None')}; Desc: {attrs.get('DESCRIPTION', '')}",
+                    'type': 'Toxic Site'
+                }
+                sites.append(site)
+    except Exception as e:
+        logging.error(f"Error fetching ID DEQ PCI: {e}")
+
+    # 2. Landfills (Layer 28)
+    # Has COUNTY field, but no ZIPCODE. Use Spatial Query if lat/lon available, or County.
+    url_lf = f"{base_url}/28/query"
+    params_lf = {
+        'where': "1=1",
+        'outFields': '*',
+        'f': 'json',
+        'outSR': '4326'
+    }
+    
+    # If we have lat/lon, use bounding box for landfills (approx 15 miles)
+    if lat and lon:
+        offset = 0.25 
+        xmin, ymin = lon - offset, lat - offset
+        xmax, ymax = lon + offset, lat + offset
+        params_lf['geometry'] = f"{xmin},{ymin},{xmax},{ymax}"
+        params_lf['geometryType'] = 'esriGeometryEnvelope'
+        params_lf['spatialRel'] = 'esriSpatialRelIntersects'
+    elif not is_zip:
+        # Filter by County if provided
+        params_lf['where'] = f"UPPER(COUNTY) LIKE '%{search_term.upper()}%'"
+    else:
+        # If Zip only and no lat/lon (unlikely), we might skip or fetch all (risk of too many)
+        # But usually we have lat/lon from get_location_details
+        pass
+
+    try:
+        response = requests.get(url_lf, params=params_lf, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            for feature in data.get('features', []):
+                attrs = feature.get('attributes', {})
+                geom = feature.get('geometry', {})
+                
+                lat_val = geom.get('y')
+                lon_val = geom.get('x')
+                
+                if not lat_val or not lon_val:
+                    continue
+                    
+                site = {
+                    'name': attrs.get('SITENAME', 'Unknown Landfill'),
+                    'county': str(attrs.get('COUNTY', '')).upper(),
+                    'lat': lat_val,
+                    'lon': lon_val,
+                    'source': 'ID DEQ Landfill',
+                    'url': f"{base_url}/28",
+                    'details': f"Status: {attrs.get('STATUS', 'Unknown')}; Type: {attrs.get('TYPE', 'Unknown')}; Contaminant: {attrs.get('CONTAMINANT', 'None')}",
+                    'type': 'Toxic Site' # Group with toxic sites
+                }
+                sites.append(site)
+    except Exception as e:
+        logging.error(f"Error fetching ID DEQ Landfills: {e}")
+
+    logging.info(f"Found {len(sites)} ID DEQ sites.")
+    return sites
